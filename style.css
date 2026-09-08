@@ -506,21 +506,22 @@ html[data-theme="light"] #btn-theme .icon-moon { display: block; }
 /* ── Fuel type selector ── */
 .fuel-type-grid {
   display: grid;
-  grid-template-columns: repeat(4, 1fr);
-  gap: 6px;
+  grid-template-columns: repeat(5, 1fr);
+  gap: 5px;
 }
 
 .fuel-btn {
-  padding: 11px 4px;
+  padding: 10px 2px;
   background: var(--surface-2);
   border: 1px solid var(--border);
   border-radius: var(--radius-xs);
   color: var(--text-dim);
   font-family: 'Satoshi', sans-serif;
-  font-size: .78rem; font-weight: 700; letter-spacing: .04em;
+  font-size: .74rem; font-weight: 700; letter-spacing: .02em;
   cursor: pointer;
   transition: border-color .15s, color .15s, background .15s, transform .1s, box-shadow .15s;
   text-align: center;
+  white-space: nowrap;
 }
 .fuel-btn:not(.active):hover {
   border-color: var(--border-hi);
@@ -534,14 +535,66 @@ html[data-theme="light"] #btn-theme .icon-moon { display: block; }
   box-shadow: 0 0 12px var(--accent-dim);
 }
 
-/* ── Fuel price disclaimer ── */
+.fuel-header-right {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.fuel-location-select {
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: 100px;
+  color: var(--text-dim);
+  font-family: 'Satoshi', sans-serif;
+  font-size: .62rem;
+  font-weight: 700;
+  padding: 2px 7px;
+  cursor: pointer;
+  outline: none;
+  max-width: 145px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  transition: border-color .15s, color .15s;
+}
+.fuel-location-select:focus,
+.fuel-location-select:hover {
+  border-color: var(--accent);
+  color: var(--text);
+}
+.fuel-location-select option {
+  background: var(--surface-2);
+  color: var(--text);
+}
+
+/* ── Fuel price disclaimer & badge ── */
+.fuel-info-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin-top: 6px;
+}
+
 .fuel-disclaimer {
   font-size: .58rem;
   color: var(--text-muted);
   font-family: 'DM Mono', monospace;
   letter-spacing: .02em;
-  margin-top: 7px;
   line-height: 1.4;
+  margin: 0;
+  flex: 1;
+  min-width: 170px;
+}
+
+.fuel-price-badge {
+  font-size: .62rem;
+  color: var(--accent);
+  font-family: 'DM Mono', monospace;
+  font-weight: 600;
+  letter-spacing: .01em;
+  white-space: nowrap;
 }
 
 /* ── Install (Add to Home Screen) button ── */

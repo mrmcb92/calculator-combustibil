@@ -47,12 +47,14 @@ const TRADUCERI = {
     syncConnected:  'Synced',
     syncOffline:    'Offline — using local profiles',
     fuelType:       'Fuel type',
+    fuelLocation:   'Location',
+    nationalAvg:    '🇷🇴 National Average',
     priceDefault:   'default prices · tap to refresh',
     priceUpdated:   'updated',
     priceLive:      'live',
     priceLoading:   'updating...',
     priceRonOnly:   'live prices in RON only',
-    priceDisclaimer: 'Indicative prices from fuel stations, updated daily — may differ at the pump',
+    priceDisclaimer: 'Real station prices (Peco Online & PretCarburant) — updated daily',
     installApp:     'Install app',
     installTitle:   'Install app',
     installIntro:   'Add Fuel Calculator to your home screen for quick, offline access — it works like a native app.',
@@ -121,12 +123,14 @@ const TRADUCERI = {
     syncConnected:  'Sincronizat',
     syncOffline:    'Offline — profiluri locale',
     fuelType:       'Tip combustibil',
+    fuelLocation:   'Locație',
+    nationalAvg:    '🇷🇴 Medie Națională',
     priceDefault:   'prețuri implicite · apasă pentru refresh',
     priceUpdated:   'actualizat',
     priceLive:      'live',
     priceLoading:   'se actualizează...',
     priceRonOnly:   'prețuri live doar în RON',
-    priceDisclaimer: 'Prețuri orientative din benzinării, actualizate zilnic — pot diferi față de pompă',
+    priceDisclaimer: 'Prețuri exacte din benzinării (Peco Online & PretCarburant) — actualizate zilnic',
     installApp:     'Instalează aplicația',
     installTitle:   'Instalează aplicația',
     installIntro:   'Adaugă Calculator Combustibil pe ecranul principal pentru acces rapid și offline — funcționează ca o aplicație nativă.',
@@ -471,19 +475,24 @@ function t() { return TRADUCERI[limbaActiva]; }
 
 // ── Fuel prices ───────────────────────────────────────────────────────────────
 
-// Default fallback prices for Romania (RON/L) — mirrors fuel-prices.json as a
-// last-resort when the network fetch fails.
-const FUEL_DEFAULTS_RON = { B95: 9.72, B98: 10.37, Diesel: 10.18, GPL: 4.64 };
+// Default fallback prices for Romania (RON/L) — exact 2026 market averages
+const FUEL_DEFAULTS_RON = {
+  B95: 9.77,
+  B98: 10.18,
+  Diesel: 10.23,
+  DieselPlus: 10.61,
+  GPL: 4.67
+};
 const FUEL_CACHE_KEY    = 'comb_fuelPrices';
 const FUEL_CACHE_TTL    = 12 * 60 * 60 * 1000; // 12 hours — daily updates
 
-let selectedFuelType = storageGet('comb_fuelType') || '';
+let selectedFuelType     = storageGet('comb_fuelType') || '';
+let selectedFuelLocation = storageGet('comb_fuelLocation') || 'national';
 
 // ── Fuel price functions ──────────────────────────────────────────────────────
 
-// Prices are served from the repo's fuel-prices.json via GitHub raw CDN.
-// A GitHub Actions workflow (/.github/workflows/update-fuel-prices.yml)
-// updates the file automatically every day at 05:00 UTC — no API key needed.
+// Prices are served primarily via /api/fuel-prices, fallback to local fuel-prices.json,
+// and then GitHub raw CDN.
 const FUEL_PRICES_URL =
   'https://raw.githubusercontent.com/mrmcb92/fuel-calculator/main/fuel-prices.json';
 
@@ -493,27 +502,52 @@ function loadFuelPriceCache() {
 
 async function fetchFuelPrices() {
   try {
-    let res = await fetch('./fuel-prices.json?t=' + Date.now());
+    let res = await fetch('/api/fuel-prices?t=' + Date.now());
+    if (!res.ok) {
+      res = await fetch('./fuel-prices.json?t=' + Date.now());
+    }
     if (!res.ok) {
       res = await fetch(FUEL_PRICES_URL + '?t=' + Date.now());
     }
     if (!res.ok) return null;
     const data = await res.json();
     if (!data.prices) return null;
-    // Validate each value is a positive number
+
+    // Validate each price value is a positive number
     const prices = {};
     for (const [k, v] of Object.entries(data.prices)) {
       const n = parseFloat(v);
       if (!isNaN(n) && n > 0) prices[k] = Math.round(n * 100) / 100;
     }
     if (!Object.keys(prices).length) return null;
+
+    // Parse and validate city prices
+    const cities = {};
+    if (data.cities && typeof data.cities === 'object') {
+      for (const [cityName, cityPrices] of Object.entries(data.cities)) {
+        if (cityPrices && typeof cityPrices === 'object') {
+          const validCity = {};
+          for (const [fk, fv] of Object.entries(cityPrices)) {
+            const num = parseFloat(fv);
+            if (!isNaN(num) && num > 0) validCity[fk] = Math.round(num * 100) / 100;
+          }
+          if (Object.keys(validCity).length) cities[cityName] = validCity;
+        }
+      }
+    }
+
     const cache = {
       prices,
+      nationalAverages: data.nationalAverages || prices,
+      cities,
+      networks:   data.networks || {},
       timestamp:  Date.now(),
       updatedAt:  data.updated || null,
       source:     'live',
     };
     storageSet(FUEL_CACHE_KEY, JSON.stringify(cache));
+    populateLocationDropdowns();
+    updateFuelPriceBadge();
     return cache;
   } catch (e) {
     console.warn('Fuel price fetch failed:', e);
@@ -523,7 +557,87 @@ async function fetchFuelPrices() {
 
 function getCurrentFuelPrices() {
   const cache = loadFuelPriceCache();
+  if (selectedFuelLocation && selectedFuelLocation !== 'national' && cache?.cities?.[selectedFuelLocation]) {
+    const cityPrices = cache.cities[selectedFuelLocation];
+    return Object.assign({}, cache?.prices || FUEL_DEFAULTS_RON, cityPrices);
+  }
   return cache?.prices || FUEL_DEFAULTS_RON;
+}
+
+function populateLocationDropdowns() {
+  const cache = loadFuelPriceCache();
+  const cities = cache?.cities ? Object.keys(cache.cities).sort((a, b) => a.localeCompare(b, 'ro')) : [];
+
+  ['location-select', 'location-select-r'].forEach(id => {
+    const sel = document.getElementById(id);
+    if (!sel) return;
+    const currentVal = selectedFuelLocation;
+    sel.innerHTML = '';
+
+    const natOpt = document.createElement('option');
+    natOpt.value = 'national';
+    natOpt.id = id === 'location-select' ? 'opt-nat' : 'opt-nat-r';
+    natOpt.textContent = t().nationalAvg;
+    sel.appendChild(natOpt);
+
+    cities.forEach(city => {
+      const opt = document.createElement('option');
+      opt.value = city;
+      opt.textContent = city;
+      sel.appendChild(opt);
+    });
+
+    sel.value = currentVal && (currentVal === 'national' || cities.includes(currentVal)) ? currentVal : 'national';
+  });
+}
+
+function setFuelLocation(loc) {
+  selectedFuelLocation = loc || 'national';
+  storageSet('comb_fuelLocation', selectedFuelLocation);
+  ['location-select', 'location-select-r'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.value = selectedFuelLocation;
+  });
+  updateFuelPriceBadge();
+  if (selectedFuelType) {
+    applyFuelTypePrice(selectedFuelType, true);
+  }
+}
+
+function updateFuelPriceBadge() {
+  const badge = document.getElementById('fuel-price-badge');
+  const badgeR = document.getElementById('fuel-price-badge-r');
+  if (!badge && !badgeR) return;
+
+  if (!selectedFuelType || currency !== 'RON') {
+    if (badge) badge.style.display = 'none';
+    if (badgeR) badgeR.style.display = 'none';
+    return;
+  }
+
+  const prices = getCurrentFuelPrices();
+  const price = prices[selectedFuelType];
+  if (!price) {
+    if (badge) badge.style.display = 'none';
+    if (badgeR) badgeR.style.display = 'none';
+    return;
+  }
+
+  const cache = loadFuelPriceCache();
+  const natPrice = cache?.nationalAverages?.[selectedFuelType] || cache?.prices?.[selectedFuelType] || FUEL_DEFAULTS_RON[selectedFuelType];
+
+  let text = '';
+  if (selectedFuelLocation && selectedFuelLocation !== 'national') {
+    text = `${selectedFuelLocation}: ${price.toFixed(2)} RON/L` + (natPrice && natPrice !== price ? ` (medie: ${natPrice.toFixed(2)})` : '');
+  } else {
+    text = `${t().nationalAvg.replace(/^[^\w\s]+/, '').trim()}: ${price.toFixed(2)} RON/L`;
+  }
+
+  [badge, badgeR].forEach(el => {
+    if (!el) return;
+    el.textContent = text;
+    el.style.display = 'inline-block';
+  });
 }
 
 // Recompute the freshness badge based on the cache, the selected fuel type and
@@ -539,9 +653,11 @@ function refreshFreshnessBadge() {
   } else {
     updatePriceFreshness(null, 'default');
   }
+  updateFuelPriceBadge();
 }
 
 async function initFuelPrices() {
+  populateLocationDropdowns();
   const cache = loadFuelPriceCache();
   const now   = Date.now();
 
@@ -549,7 +665,7 @@ async function initFuelPrices() {
     refreshFreshnessBadge();
   } else {
     updatePriceFreshness(null, 'loading');
-    const fresh = await fetchFuelPrices();
+    await fetchFuelPrices();
     refreshFreshnessBadge();
   }
 
@@ -574,6 +690,7 @@ function selectFuelType(type) {
   updateFuelTypeButtons();
   // Reflect "RON only" notice when a type is picked under a non-RON currency.
   refreshFreshnessBadge();
+  updateFuelPriceBadge();
   applyFuelTypePrice(type, true);
 }
 
@@ -598,6 +715,7 @@ function applyFuelTypePrice(type, overwrite) {
     pretREl.value = val;
     calcRange();
   }
+  updateFuelPriceBadge();
 }
 
 function updateFuelTypeButtons() {
@@ -685,6 +803,7 @@ function aplicaLimba() {
   document.getElementById('btn-limba').textContent = limbaActiva === 'en' ? 'RO' : 'EN';
   document.documentElement.lang = limbaActiva;
   updateCurrencyLabels();
+  populateLocationDropdowns();
   refreshFreshnessBadge();
   if (lastResult) afiseazaRezultat(lastResult);
   renderHistory();
@@ -1205,6 +1324,7 @@ window.onOverlayClick     = onOverlayClick;
 window.copySyncCode       = copySyncCode;
 window.applySyncCode      = applySyncCode;
 window.selectFuelType     = selectFuelType;
+window.setFuelLocation    = setFuelLocation;
 window.refreshFuelPrices  = refreshFuelPrices;
 window.handleInstallClick = handleInstallClick;
 window.closeInstallModal  = closeInstallModal;

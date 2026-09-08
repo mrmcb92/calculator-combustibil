@@ -128,15 +128,24 @@
         <div class="field" id="field-fuel-type">
           <div class="field-header">
             <label id="label-fuel-type">Fuel type</label>
-            <span id="price-freshness" class="price-freshness" onclick="refreshFuelPrices()" role="button" title="Refresh prices"></span>
+            <div class="fuel-header-right">
+              <select id="location-select" class="fuel-location-select" onchange="setFuelLocation(this.value)" aria-label="Fuel Location">
+                <option value="national" id="opt-nat">🇷🇴 Medie Națională</option>
+              </select>
+              <span id="price-freshness" class="price-freshness" onclick="refreshFuelPrices()" role="button" title="Refresh prices"></span>
+            </div>
           </div>
           <div class="fuel-type-grid" id="fuel-type-grid">
-            <button class="fuel-btn" data-fuel="B95"    onclick="selectFuelType('B95')">95</button>
-            <button class="fuel-btn" data-fuel="B98"    onclick="selectFuelType('B98')">98</button>
-            <button class="fuel-btn" data-fuel="Diesel" onclick="selectFuelType('Diesel')">Diesel</button>
-            <button class="fuel-btn" data-fuel="GPL"    onclick="selectFuelType('GPL')">GPL</button>
+            <button class="fuel-btn" data-fuel="B95"        onclick="selectFuelType('B95')">95</button>
+            <button class="fuel-btn" data-fuel="B98"        onclick="selectFuelType('B98')">98</button>
+            <button class="fuel-btn" data-fuel="Diesel"     onclick="selectFuelType('Diesel')">Diesel</button>
+            <button class="fuel-btn" data-fuel="DieselPlus" onclick="selectFuelType('DieselPlus')">Diesel+</button>
+            <button class="fuel-btn" data-fuel="GPL"        onclick="selectFuelType('GPL')">GPL</button>
           </div>
-          <p id="fuel-disclaimer" class="fuel-disclaimer">Indicative prices from fuel stations, updated daily — may differ at the pump</p>
+          <div class="fuel-info-row">
+            <p id="fuel-disclaimer" class="fuel-disclaimer">Indicative prices from fuel stations, updated daily — may differ at the pump</p>
+            <span id="fuel-price-badge" class="fuel-price-badge" style="display:none"></span>
+          </div>
         </div>
 
         <div class="field">
@@ -149,7 +158,7 @@
             </div>
           </div>
           <div class="input-wrap">
-            <input type="number" id="pret" inputmode="decimal" placeholder="7.20" step="any" min="0.1" max="1000" oninput="recalculeaza()">
+            <input type="number" id="pret" inputmode="decimal" placeholder="9.77" step="any" min="0.1" max="1000" oninput="recalculeaza()">
             <span class="unit" id="unit-pret">RON/L</span>
           </div>
         </div>
@@ -208,21 +217,30 @@
         <div class="field" id="field-fuel-type-r">
           <div class="field-header">
             <label id="label-fuel-type-r">Fuel type</label>
-            <span id="price-freshness-r" class="price-freshness" onclick="refreshFuelPrices()" role="button" title="Refresh prices"></span>
+            <div class="fuel-header-right">
+              <select id="location-select-r" class="fuel-location-select" onchange="setFuelLocation(this.value)" aria-label="Fuel Location">
+                <option value="national" id="opt-nat-r">🇷🇴 Medie Națională</option>
+              </select>
+              <span id="price-freshness-r" class="price-freshness" onclick="refreshFuelPrices()" role="button" title="Refresh prices"></span>
+            </div>
           </div>
           <div class="fuel-type-grid" id="fuel-type-grid-r">
-            <button class="fuel-btn" data-fuel="B95"    onclick="selectFuelType('B95')">95</button>
-            <button class="fuel-btn" data-fuel="B98"    onclick="selectFuelType('B98')">98</button>
-            <button class="fuel-btn" data-fuel="Diesel" onclick="selectFuelType('Diesel')">Diesel</button>
-            <button class="fuel-btn" data-fuel="GPL"    onclick="selectFuelType('GPL')">GPL</button>
+            <button class="fuel-btn" data-fuel="B95"        onclick="selectFuelType('B95')">95</button>
+            <button class="fuel-btn" data-fuel="B98"        onclick="selectFuelType('B98')">98</button>
+            <button class="fuel-btn" data-fuel="Diesel"     onclick="selectFuelType('Diesel')">Diesel</button>
+            <button class="fuel-btn" data-fuel="DieselPlus" onclick="selectFuelType('DieselPlus')">Diesel+</button>
+            <button class="fuel-btn" data-fuel="GPL"        onclick="selectFuelType('GPL')">GPL</button>
           </div>
-          <p id="fuel-disclaimer-r" class="fuel-disclaimer">Indicative prices from fuel stations, updated daily — may differ at the pump</p>
+          <div class="fuel-info-row">
+            <p id="fuel-disclaimer-r" class="fuel-disclaimer">Indicative prices from fuel stations, updated daily — may differ at the pump</p>
+            <span id="fuel-price-badge-r" class="fuel-price-badge" style="display:none"></span>
+          </div>
         </div>
 
         <div class="field">
           <label id="label-pret-r" for="pret-r">Fuel price</label>
           <div class="input-wrap">
-            <input type="number" id="pret-r" inputmode="decimal" placeholder="7.20" step="any" min="0.1" oninput="calcRange()">
+            <input type="number" id="pret-r" inputmode="decimal" placeholder="9.77" step="any" min="0.1" oninput="calcRange()">
             <span class="unit" id="unit-pret-r">RON/L</span>
           </div>
         </div>

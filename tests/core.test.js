@@ -99,6 +99,24 @@ test('computeCore: handles decimal precision for liters and cost accurately', ()
   assert.ok(Math.abs(r.costPerKm - (expectedCost / 85.5)) < 1e-9);
 });
 
+// ── fuel-prices.json verification ──────────────────────────────────────────
+
+test('fuel-prices.json: valid structure and realistic Romanian prices', () => {
+  const fs = require('fs');
+  const data = JSON.parse(fs.readFileSync(path.join(__dirname, '..', 'fuel-prices.json'), 'utf8'));
+  assert.ok(data.prices, 'missing prices object');
+  const requiredKeys = ['B95', 'B98', 'Diesel', 'DieselPlus', 'GPL'];
+  requiredKeys.forEach(k => {
+    assert.ok(typeof data.prices[k] === 'number', `price ${k} is not a number`);
+    assert.ok(data.prices[k] >= 2.0 && data.prices[k] <= 25.0, `price ${k} (${data.prices[k]}) is outside realistic bounds`);
+  });
+  assert.ok(data.prices.B98 >= data.prices.B95, 'B98 premium petrol should be >= B95 regular');
+  assert.ok(data.prices.DieselPlus >= data.prices.Diesel, 'DieselPlus premium diesel should be >= standard Diesel');
+  assert.ok(data.prices.GPL < data.prices.B95, 'GPL price should be less than petrol');
+  assert.ok(data.cities && Object.keys(data.cities).length >= 10, 'expected at least 10 city prices');
+  assert.ok(data.cities.Bucuresti, 'Bucuresti city prices should be present');
+});
+
 // ── Report ─────────────────────────────────────────────────────────────────
 
 console.log(`\n✓ ${passed} tests passed`);

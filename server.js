@@ -1,9 +1,30 @@
 const express = require('express');
 const path = require('path');
+const fs = require('fs');
 
 const app = express();
 const PORT = 3000;
 const HOST = '0.0.0.0';
+
+// API: Real-time and cached fuel prices endpoint
+app.get('/api/fuel-prices', (req, res) => {
+  res.type('application/json');
+  res.setHeader('Cache-Control', 'public, max-age=1800');
+  const pricesPath = path.join(__dirname, 'fuel-prices.json');
+  fs.readFile(pricesPath, 'utf8', (err, data) => {
+    if (err) {
+      return res.status(500).json({
+        error: 'Failed to read fuel prices',
+        prices: { B95: 9.77, B98: 10.18, Diesel: 10.23, DieselPlus: 10.61, GPL: 4.67 }
+      });
+    }
+    try {
+      res.send(data);
+    } catch (parseErr) {
+      res.status(500).json({ error: 'Invalid fuel prices data' });
+    }
+  });
+});
 
 // Optional dynamic config override for Firebase
 app.get('/firebase-config.js', (req, res) => {
