@@ -6,7 +6,7 @@ const path = require('path');
 const assert = require('assert');
 require(path.join(__dirname, '..', 'core.js'));
 
-const { parseNum, toL100, computeCore } = global.FuelCore;
+const { parseNum, toL100, computeCore, normalizeFuelType, mergeFuelPrices } = global.FuelCore;
 
 let passed = 0;
 const failures = [];
@@ -100,6 +100,38 @@ test('computeCore: handles decimal precision for liters and cost accurately', ()
 });
 
 // ── fuel-prices.json verification ──────────────────────────────────────────
+
+test('normalizeFuelType: normalizes DieselPlus variations', () => {
+  assert.strictEqual(normalizeFuelType('DieselPlus'), 'DieselPlus');
+  assert.strictEqual(normalizeFuelType('diesel+'), 'DieselPlus');
+  assert.strictEqual(normalizeFuelType('Diesel+'), 'DieselPlus');
+  assert.strictEqual(normalizeFuelType('dieselplus'), 'DieselPlus');
+  assert.strictEqual(normalizeFuelType('DIESEL+'), 'DieselPlus');
+  assert.strictEqual(normalizeFuelType('95'), 'B95');
+  assert.strictEqual(normalizeFuelType('b95'), 'B95');
+  assert.strictEqual(normalizeFuelType('98'), 'B98');
+  assert.strictEqual(normalizeFuelType('b98'), 'B98');
+  assert.strictEqual(normalizeFuelType('diesel'), 'Diesel');
+  assert.strictEqual(normalizeFuelType('gpl'), 'GPL');
+  assert.strictEqual(normalizeFuelType(''), '');
+  assert.strictEqual(normalizeFuelType(null), '');
+});
+
+test('mergeFuelPrices: safely preserves DieselPlus when cached prices are missing it', () => {
+  const defaults = { B95: 9.77, B98: 10.18, Diesel: 10.23, DieselPlus: 10.61, GPL: 4.67 };
+  // Old stale cache before DieselPlus was added
+  const staleCache = { B95: 9.70, B98: 10.10, Diesel: 10.20, GPL: 4.60 };
+  const merged = mergeFuelPrices(defaults, staleCache);
+  assert.strictEqual(merged.DieselPlus, 10.61, 'DieselPlus must fall back to default when missing in cache');
+  assert.strictEqual(merged.B95, 9.70, 'B95 should take cached value');
+  assert.strictEqual(merged.Diesel, 10.20, 'Diesel should take cached value');
+
+  // City without DieselPlus should still retain DieselPlus from base
+  const cityPricesWithoutDieselPlus = { B95: 9.65, Diesel: 10.15 };
+  const cityMerged = mergeFuelPrices(merged, null, cityPricesWithoutDieselPlus);
+  assert.strictEqual(cityMerged.DieselPlus, 10.61, 'DieselPlus must persist in city prices if city data lacks it');
+  assert.strictEqual(cityMerged.Diesel, 10.15, 'City-specific diesel should override');
+});
 
 test('fuel-prices.json: valid structure and realistic Romanian prices', () => {
   const fs = require('fs');

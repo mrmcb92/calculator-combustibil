@@ -486,7 +486,7 @@ const FUEL_DEFAULTS_RON = {
 const FUEL_CACHE_KEY    = 'comb_fuelPrices';
 const FUEL_CACHE_TTL    = 12 * 60 * 60 * 1000; // 12 hours — daily updates
 
-let selectedFuelType     = storageGet('comb_fuelType') || '';
+let selectedFuelType     = (typeof normalizeFuelType === 'function' ? normalizeFuelType(storageGet('comb_fuelType')) : storageGet('comb_fuelType')) || '';
 let selectedFuelLocation = storageGet('comb_fuelLocation') || 'national';
 
 // ── Fuel price functions ──────────────────────────────────────────────────────
@@ -521,6 +521,11 @@ async function fetchFuelPrices() {
     }
     if (!Object.keys(prices).length) return null;
 
+    // Guarantee all default fuels (including DieselPlus) are populated
+    for (const [k, v] of Object.entries(FUEL_DEFAULTS_RON)) {
+      if (!prices[k]) prices[k] = v;
+    }
+
     // Parse and validate city prices
     const cities = {};
     if (data.cities && typeof data.cities === 'object') {
@@ -538,7 +543,7 @@ async function fetchFuelPrices() {
 
     const cache = {
       prices,
-      nationalAverages: data.nationalAverages || prices,
+      nationalAverages: Object.assign({}, prices, data.nationalAverages || {}),
       cities,
       networks:   data.networks || {},
       timestamp:  Date.now(),
@@ -557,11 +562,17 @@ async function fetchFuelPrices() {
 
 function getCurrentFuelPrices() {
   const cache = loadFuelPriceCache();
+  const basePrices = typeof mergeFuelPrices === 'function'
+    ? mergeFuelPrices(FUEL_DEFAULTS_RON, cache?.prices)
+    : Object.assign({}, FUEL_DEFAULTS_RON, cache?.prices);
+
   if (selectedFuelLocation && selectedFuelLocation !== 'national' && cache?.cities?.[selectedFuelLocation]) {
     const cityPrices = cache.cities[selectedFuelLocation];
-    return Object.assign({}, cache?.prices || FUEL_DEFAULTS_RON, cityPrices);
+    return typeof mergeFuelPrices === 'function'
+      ? mergeFuelPrices(basePrices, null, cityPrices)
+      : Object.assign({}, basePrices, cityPrices);
   }
-  return cache?.prices || FUEL_DEFAULTS_RON;
+  return basePrices;
 }
 
 function populateLocationDropdowns() {
@@ -609,14 +620,15 @@ function updateFuelPriceBadge() {
   const badgeR = document.getElementById('fuel-price-badge-r');
   if (!badge && !badgeR) return;
 
-  if (!selectedFuelType || currency !== 'RON') {
+  const fuelKey = typeof normalizeFuelType === 'function' ? normalizeFuelType(selectedFuelType) : selectedFuelType;
+  if (!fuelKey || currency !== 'RON') {
     if (badge) badge.style.display = 'none';
     if (badgeR) badgeR.style.display = 'none';
     return;
   }
 
   const prices = getCurrentFuelPrices();
-  const price = prices[selectedFuelType];
+  const price = prices[fuelKey] || FUEL_DEFAULTS_RON[fuelKey];
   if (!price) {
     if (badge) badge.style.display = 'none';
     if (badgeR) badgeR.style.display = 'none';
@@ -624,7 +636,7 @@ function updateFuelPriceBadge() {
   }
 
   const cache = loadFuelPriceCache();
-  const natPrice = cache?.nationalAverages?.[selectedFuelType] || cache?.prices?.[selectedFuelType] || FUEL_DEFAULTS_RON[selectedFuelType];
+  const natPrice = cache?.nationalAverages?.[fuelKey] || cache?.prices?.[fuelKey] || FUEL_DEFAULTS_RON[fuelKey];
 
   let text = '';
   if (selectedFuelLocation && selectedFuelLocation !== 'national') {
@@ -661,7 +673,10 @@ async function initFuelPrices() {
   const cache = loadFuelPriceCache();
   const now   = Date.now();
 
-  if (cache && (now - cache.timestamp) < FUEL_CACHE_TTL) {
+  // If cache is missing any default fuel key (e.g. DieselPlus from earlier visits), force re-fetch
+  const hasAllFuels = cache && cache.prices && Object.keys(FUEL_DEFAULTS_RON).every(k => typeof cache.prices[k] === 'number');
+
+  if (hasAllFuels && (now - cache.timestamp) < FUEL_CACHE_TTL) {
     refreshFreshnessBadge();
   } else {
     updatePriceFreshness(null, 'loading');
@@ -685,13 +700,14 @@ async function refreshFuelPrices() {
 }
 
 function selectFuelType(type) {
-  selectedFuelType = type;
-  storageSet('comb_fuelType', type);
+  const fuelKey = typeof normalizeFuelType === 'function' ? normalizeFuelType(type) : type;
+  selectedFuelType = fuelKey;
+  storageSet('comb_fuelType', fuelKey);
   updateFuelTypeButtons();
   // Reflect "RON only" notice when a type is picked under a non-RON currency.
   refreshFreshnessBadge();
   updateFuelPriceBadge();
-  applyFuelTypePrice(type, true);
+  applyFuelTypePrice(fuelKey, true);
 }
 
 function applyFuelTypePrice(type, overwrite) {
@@ -699,8 +715,9 @@ function applyFuelTypePrice(type, overwrite) {
     // Don't auto-fill for non-RON currencies — prices are RON-based
     return;
   }
+  const fuelKey = typeof normalizeFuelType === 'function' ? normalizeFuelType(type) : type;
   const prices = getCurrentFuelPrices();
-  const price  = prices[type];
+  const price  = prices[fuelKey] || FUEL_DEFAULTS_RON[fuelKey];
   if (!price) return;
   const val = price.toFixed(2);
   // Cost tab
@@ -719,8 +736,10 @@ function applyFuelTypePrice(type, overwrite) {
 }
 
 function updateFuelTypeButtons() {
+  const normSelected = typeof normalizeFuelType === 'function' ? normalizeFuelType(selectedFuelType) : selectedFuelType;
   document.querySelectorAll('#fuel-type-grid .fuel-btn, #fuel-type-grid-r .fuel-btn').forEach(b => {
-    b.classList.toggle('active', b.dataset.fuel === selectedFuelType);
+    const normBtn = typeof normalizeFuelType === 'function' ? normalizeFuelType(b.dataset.fuel) : b.dataset.fuel;
+    b.classList.toggle('active', normBtn === normSelected);
   });
 }
 
