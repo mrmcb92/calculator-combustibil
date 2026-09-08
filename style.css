@@ -65,7 +65,14 @@ html[data-theme="light"] {
   --shadow-toast: 0 8px 24px rgba(14,28,41,.16);
 }
 
-html { scroll-behavior: smooth; }
+html {
+  height: 100%;
+  scroll-behavior: smooth;
+  -webkit-text-size-adjust: 100%;
+  overscroll-behavior: none;
+  overscroll-behavior-y: none;
+  touch-action: pan-y;
+}
 
 input[type=number]::-webkit-inner-spin-button,
 input[type=number]::-webkit-outer-spin-button { -webkit-appearance: none; }
@@ -76,12 +83,38 @@ body {
   background: var(--bg);
   background-image: radial-gradient(ellipse 70% 38% at 50% 0%, var(--bg-glow) 0%, transparent 70%);
   color: var(--text);
+  min-height: 100%;
   min-height: 100dvh;
+  min-height: -webkit-fill-available;
   display: flex;
   align-items: center;
   justify-content: center;
-  padding: 20px 16px;
+  padding: max(16px, env(safe-area-inset-top)) max(16px, env(safe-area-inset-right)) max(16px, env(safe-area-inset-bottom)) max(16px, env(safe-area-inset-left));
+  overflow-x: hidden;
+  overscroll-behavior: none;
+  overscroll-behavior-y: none;
+  -webkit-overflow-scrolling: touch;
+  -webkit-tap-highlight-color: transparent;
+  -webkit-touch-callout: none;
+  user-select: none;
+  -webkit-user-select: none;
+  touch-action: pan-y;
   transition: background-color .25s ease, color .25s ease;
+}
+
+body.modal-open {
+  overflow: hidden;
+}
+
+/* Allow text selection inside text inputs and copyable data */
+input, textarea, select, .sync-code, .r-value, .fuel-price-badge {
+  user-select: text;
+  -webkit-user-select: text;
+}
+
+/* Eliminate double-tap-to-zoom and tap delays on controls */
+button, input, select, textarea, a, .tab, .seg, .fuel-btn, .icon-btn, .result-card, label, .price-freshness {
+  touch-action: manipulation;
 }
 
 /* Grain overlay — breaks digital flatness */
@@ -97,12 +130,14 @@ body::before {
 .card {
   width: 100%;
   max-width: 420px;
+  margin: auto 0;
   background: var(--surface);
   border: 1px solid var(--border);
   border-radius: var(--radius);
   padding: 24px 22px;
   box-shadow: var(--shadow-card);
   position: relative; z-index: 10;
+  touch-action: pan-y;
   transition: background-color .25s ease, border-color .25s ease;
 }
 
@@ -686,6 +721,8 @@ input:focus-visible {
   display: flex; align-items: center; justify-content: center;
   padding: 20px;
   backdrop-filter: blur(4px);
+  overscroll-behavior: contain;
+  touch-action: pan-y;
 }
 html[data-theme="light"] .modal-overlay { background: rgba(14,28,41,.35); }
 
@@ -695,6 +732,11 @@ html[data-theme="light"] .modal-overlay { background: rgba(14,28,41,.35); }
   border-radius: var(--radius);
   padding: 22px 20px;
   width: 100%; max-width: 360px;
+  max-height: calc(100dvh - 36px);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
+  touch-action: pan-y;
   animation: fadeUp .22s ease forwards;
   box-shadow: var(--shadow-modal);
 }
@@ -783,3 +825,21 @@ html[data-theme="light"] .modal-overlay { background: rgba(14,28,41,.35); }
 }
 .sync-feedback.ok    { color: var(--accent); }
 .sync-feedback.error { color: var(--error); }
+
+/* ── Mobile / PWA App Shell ── */
+@media (max-width: 480px) {
+  body {
+    padding: max(10px, env(safe-area-inset-top)) max(10px, env(safe-area-inset-right)) max(12px, env(safe-area-inset-bottom)) max(10px, env(safe-area-inset-left));
+  }
+  .card {
+    padding: 20px 16px;
+    border-radius: 16px;
+  }
+}
+
+@media (display-mode: standalone) {
+  body {
+    padding-top: max(16px, env(safe-area-inset-top));
+    padding-bottom: max(16px, env(safe-area-inset-bottom));
+  }
+}

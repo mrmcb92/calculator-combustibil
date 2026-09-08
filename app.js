@@ -326,10 +326,12 @@ function openSyncModal() {
   document.getElementById('sync-code-input').value = '';
   document.getElementById('sync-feedback').textContent = '';
   document.getElementById('sync-modal').style.display = '';
+  document.body.classList.add('modal-open');
 }
 
 function closeSyncModal() {
   document.getElementById('sync-modal').style.display = 'none';
+  document.body.classList.remove('modal-open');
 }
 
 function onOverlayClick(e) {
@@ -434,10 +436,12 @@ function renderInstallSteps() {
 function openInstallModal() {
   renderInstallSteps();
   document.getElementById('install-modal').style.display = '';
+  document.body.classList.add('modal-open');
 }
 
 function closeInstallModal() {
   document.getElementById('install-modal').style.display = 'none';
+  document.body.classList.remove('modal-open');
 }
 
 function onInstallOverlayClick(e) {
@@ -1048,6 +1052,12 @@ function afiseazaRezultat(res) {
       ${perPaxHTML}
     </div>
   `;
+
+  if (window.innerWidth <= 480) {
+    setTimeout(() => {
+      wrap.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    }, 40);
+  }
 }
 
 // ── Range calculation ─────────────────────────────────────────────────────────
@@ -1086,6 +1096,12 @@ function calcRange() {
       </div>
     </div>
   `;
+
+  if (window.innerWidth <= 480) {
+    setTimeout(() => {
+      wrap.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    }, 40);
+  }
 }
 
 function afiseazaEroareRange(msg) {
@@ -1254,6 +1270,127 @@ function deleteProfile() {
   showToast(tr.profileDeleted);
 }
 
+// ── Mobile / PWA Native App Experience ──────────────────────────────────────────
+// 1. Prevent double-tap-to-zoom on screen (so app acts like a native mobile app)
+// 2. Prevent pinch/gesture zoom
+// 3. Prevent unnecessary screen scrolling/rubber-banding when content fits on screen
+//    Scroll is ONLY enabled when data/content actually overflows the viewport.
+
+function initMobileAppBehavior() {
+  // Prevent double-click zoom
+  document.addEventListener('dblclick', (e) => {
+    e.preventDefault();
+  }, { passive: false });
+
+  // Prevent Safari gesture zooming (pinch to zoom)
+  ['gesturestart', 'gesturechange', 'gestureend'].forEach(evt => {
+    document.addEventListener(evt, (e) => {
+      e.preventDefault();
+    }, { passive: false });
+  });
+
+  // Prevent double-tap zoom on iOS Safari while allowing normal fast taps
+  let lastTouchEndTime = 0;
+  document.addEventListener('touchend', (e) => {
+    const now = Date.now();
+    if (now - lastTouchEndTime <= 300) {
+      const tag = e.target.tagName;
+      if (tag !== 'INPUT' && tag !== 'TEXTAREA') {
+        e.preventDefault();
+        if (typeof e.target.click === 'function') {
+          e.target.click();
+        }
+      }
+    }
+    lastTouchEndTime = now;
+  }, { passive: false });
+
+  // Smart touch scrolling:
+  // Disables rubber-banding / unwanted scrolling when content fits on screen.
+  // Allows scrolling only when content exceeds viewport or within scrollable containers.
+  let startY = 0;
+  let startX = 0;
+
+  document.addEventListener('touchstart', (e) => {
+    if (e.touches && e.touches.length === 1) {
+      startY = e.touches[0].clientY;
+      startX = e.touches[0].clientX;
+    }
+  }, { passive: true });
+
+  document.addEventListener('touchmove', (e) => {
+    if (!e.touches || e.touches.length !== 1) {
+      e.preventDefault(); // pinch or multi-touch zoom prevented
+      return;
+    }
+
+    const currentY = e.touches[0].clientY;
+    const currentX = e.touches[0].clientX;
+    const deltaY = startY - currentY; // > 0: dragging up (scrolling down)
+    const deltaX = startX - currentX;
+
+    // If predominantly horizontal gesture, do not intercept
+    if (Math.abs(deltaX) > Math.abs(deltaY)) {
+      return;
+    }
+
+    // Never block interaction on form elements
+    const tag = e.target.tagName;
+    if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') {
+      return;
+    }
+
+    // Check if user is scrolling inside an internal scrollable container (e.g. modal-box)
+    let el = e.target;
+    let foundScrollable = null;
+    while (el && el !== document.body && el !== document.documentElement) {
+      const style = window.getComputedStyle(el);
+      const ovY = style.overflowY;
+      if ((ovY === 'auto' || ovY === 'scroll') && el.scrollHeight > el.clientHeight) {
+        foundScrollable = el;
+        break;
+      }
+      el = el.parentElement;
+    }
+
+    if (foundScrollable) {
+      const atTop = foundScrollable.scrollTop <= 0;
+      const atBottom = foundScrollable.scrollTop + foundScrollable.clientHeight >= foundScrollable.scrollHeight - 1;
+      // If at scroll boundary, prevent outer bounce
+      if ((deltaY < 0 && atTop) || (deltaY > 0 && atBottom)) {
+        e.preventDefault();
+      }
+      return;
+    }
+
+    // Check if the page itself has content that exceeds the screen
+    const docHeight = Math.max(
+      document.documentElement.scrollHeight,
+      document.body.scrollHeight,
+      document.documentElement.offsetHeight,
+      document.body.offsetHeight
+    );
+    const viewportHeight = window.innerHeight || document.documentElement.clientHeight;
+    const isScrollNeeded = docHeight > viewportHeight + 4;
+
+    if (!isScrollNeeded) {
+      // Content fits entirely on screen -> DO NOT SCROLL
+      e.preventDefault();
+      return;
+    }
+
+    // If scroll IS needed, allow normal smooth scrolling, but prevent elastic bounce past edges
+    const scrollTop = window.pageYOffset || document.documentElement.scrollTop || document.body.scrollTop;
+    const maxScroll = docHeight - viewportHeight;
+    const atPageTop = scrollTop <= 0;
+    const atPageBottom = scrollTop >= maxScroll - 1;
+
+    if ((deltaY < 0 && atPageTop) || (deltaY > 0 && atPageBottom)) {
+      e.preventDefault();
+    }
+  }, { passive: false });
+}
+
 // ── Reset ─────────────────────────────────────────────────────────────────────
 
 function resetForm() {
@@ -1304,6 +1441,7 @@ function incarca() {
   initFuelPrices();
   initInstall();
   updateThemeColorMeta();
+  initMobileAppBehavior();
   recalculeaza();
 
   // Enter submits from any input: cost inputs run the cost calc, range inputs
